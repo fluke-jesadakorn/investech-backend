@@ -33,15 +33,14 @@ type Document struct {
 }
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		print("PORT IS : " + port)
-		port = "8080"
-	}
-
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
 	mongoURI := os.Getenv("MONGO_URI")
@@ -82,8 +81,6 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
-
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
 }
 
 func helloHandler(c *gin.Context) {
@@ -160,7 +157,7 @@ func getDataHandler(c *gin.Context) {
 }
 
 func getUniqueSymbolsHandler(c *gin.Context) {
-	collection := client.Database("StockThaiAnalysis").Collection("processed")
+	collection := client.Database("StockThaiAnalysis").Collection("predict")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
