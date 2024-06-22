@@ -1,34 +1,35 @@
-# Use the official Golang image to create a build artifact.
-# https://hub.docker.com/_/golang
-FROM golang:1.22.1 as builder
+# First stage: Build the Go application
+FROM golang:1.20-alpine AS builder
 
-# Set the Current Working Directory inside the container
+# Set the working directory inside the container
 WORKDIR /app
 
-# Copy go mod and sum files
+# Copy the go.mod and go.sum files to the working directory
 COPY go.mod go.sum ./
 
-# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
+# Download and cache the Go modules
 RUN go mod download
 
-# Copy the source from the current directory to the Working Directory inside the container
+# Copy the rest of the application source code to the working directory
 COPY . .
 
-# Build the Go app
+# Build the Go application
 RUN go build -o main .
 
-# Start a new stage from scratch
+# Second stage: Create a lightweight image to run the Go application
 FROM alpine:latest
 
+# Install necessary CA certificates
 RUN apk --no-cache add ca-certificates
 
+# Set the working directory inside the container
 WORKDIR /root/
 
-# Copy the Pre-built binary file from the previous stage
+# Copy the built Go application from the builder stage
 COPY --from=builder /app/main .
 
-# Expose port 8080 to the outside world
+# Expose the port on which the application will run
 EXPOSE 8080
 
-# Command to run the executable
+# Set the entrypoint command to run the application
 CMD ["./main"]
