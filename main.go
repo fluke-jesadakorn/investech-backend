@@ -79,7 +79,9 @@ func main() {
 		api.GET("/symbols", getUniqueSymbolsHandler)
 	}
 
-	r.Run(":" + port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func helloHandler(c *gin.Context) {
