@@ -1,0 +1,79 @@
+info:
+  contact: {}
+paths:
+  /data:
+    get:
+      description: Get data from MongoDB collection
+      operationId: get-data
+      parameters:
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Sort
+        in: query
+        name: sort
+        type: string
+      - description: Order
+        in: query
+        name: order
+        type: string
+      - description: Symbol
+        in: query
+        name: Symbol
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get data from MongoDB
+  /hello:
+    get:
+      description: get hello
+      operationId: get-string-by-int
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Hello, World!
+          schema:
+            type: string
+      summary: Show a Hello World
+  /symbols:
+    get:
+      description: Get unique symbols from MongoDB collection
+      operationId: get-unique-symbols
+      parameters:
+      - description: Query
+        in: query
+        name: query
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get unique symbols from MongoDB
+swagger: "2.0"
