@@ -25,7 +25,7 @@ var client *mongo.Client
 type Document struct {
 	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Symbol   string             `bson:"Symbol" json:"Symbol"`
-	Year     string             `bson:"Year" json:"Year"`
+	Year     int                `bson:"Year" json:"Year"`
 	Quarter  string             `bson:"Quarter" json:"Quarter"`
 	Datetime primitive.DateTime `bson:"Datetime" json:"Datetime"`
 	Url      string             `bson:"Url" json:"Url"`
@@ -35,8 +35,7 @@ type Document struct {
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		// log.Fatal("Error loading .env file")
-		print("Error loading .env file")
+		fmt.Println("Error loading .env file")
 	}
 
 	port := os.Getenv("PORT")
@@ -55,15 +54,15 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err = mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to connect to MongoDB: %v", err)
 	}
 
 	// Check the connection
 	err = client.Ping(ctx, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to ping MongoDB: %v", err)
 	}
 
 	fmt.Println("Connected to MongoDB!")
@@ -72,7 +71,7 @@ func main() {
 	r.Use(cors.Default())
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	api := r.Group("/api")
+	api := r.Group("/api/v1")
 	{
 		api.GET("/hello", helloHandler)
 		api.GET("/data", getDataHandler)
@@ -80,7 +79,7 @@ func main() {
 	}
 
 	if err := r.Run(":" + port); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to run server: %v", err)
 	}
 }
 
@@ -91,6 +90,10 @@ func helloHandler(c *gin.Context) {
 }
 
 func getDataHandler(c *gin.Context) {
+	if client == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "MongoDB client is not initialized"})
+		return
+	}
 	collection := client.Database("StockThaiAnalysis").Collection("predict")
 
 	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
@@ -123,7 +126,8 @@ func getDataHandler(c *gin.Context) {
 	opts := options.Find().SetLimit(int64(limit)).SetSkip(int64(skip)).SetSort(bson.D{{Key: sort, Value: sortOrder}})
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Failed to find documents: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find documents"})
 		return
 	}
 	defer cursor.Close(ctx)
@@ -132,20 +136,23 @@ func getDataHandler(c *gin.Context) {
 		var doc Document
 		err := cursor.Decode(&doc)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			log.Printf("Failed to decode document: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode document"})
 			return
 		}
 		results = append(results, doc)
 	}
 
 	if err := cursor.Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Cursor error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cursor error"})
 		return
 	}
 
 	total, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Failed to count documents: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count documents"})
 		return
 	}
 
@@ -158,6 +165,10 @@ func getDataHandler(c *gin.Context) {
 }
 
 func getUniqueSymbolsHandler(c *gin.Context) {
+	if client == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "MongoDB client is not initialized"})
+		return
+	}
 	collection := client.Database("StockThaiAnalysis").Collection("predict")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -172,7 +183,8 @@ func getUniqueSymbolsHandler(c *gin.Context) {
 
 	symbols, err := collection.Distinct(ctx, "Symbol", filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Failed to get distinct symbols: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get distinct symbols"})
 		return
 	}
 
