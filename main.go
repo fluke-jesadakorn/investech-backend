@@ -35,7 +35,8 @@ type Document struct {
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		// log.Fatal("Error loading .env file")
+		print("Error loading .env file")
 	}
 
 	port := os.Getenv("PORT")
