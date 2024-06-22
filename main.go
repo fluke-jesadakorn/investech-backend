@@ -79,9 +79,10 @@ func main() {
 		api.GET("/symbols", getUniqueSymbolsHandler)
 	}
 
-	// if err := r.Run(":" + port); err != nil {
-	// 	log.Fatal(err)
-	// }
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
+
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
 }
 
