@@ -33,7 +33,7 @@ type Document struct {
 }
 
 func main() {
-	port := os.Getenv("FUNCTIONS_CUSTOMHANDLER_PORT")
+	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
