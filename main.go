@@ -12,6 +12,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/patrickmn/go-cache"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.mongodb.org/mongo-driver/bson"
@@ -21,15 +22,18 @@ import (
 )
 
 var client *mongo.Client
+var cCache *cache.Cache
 
 type Document struct {
-	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Symbol   string             `bson:"Symbol" json:"Symbol"`
-	Year     int                `bson:"Year" json:"Year"`
-	Quarter  string             `bson:"Quarter" json:"Quarter"`
-	Datetime primitive.DateTime `bson:"Datetime" json:"Datetime"`
-	Url      string             `bson:"Url" json:"Url"`
-	EPS      float64            `bson:"EPS" json:"EPS"`
+	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Symbol       string             `bson:"Symbol" json:"Symbol"`
+	Year         int                `bson:"Year" json:"Year"`
+	Quarter      string             `bson:"Quarter" json:"Quarter"`
+	Datetime     primitive.DateTime `bson:"Datetime" json:"Datetime"`
+	Url          string             `bson:"Url" json:"Url"`
+	EPS          float64            `bson:"EPS" json:"EPS"`
+	ClosePrice   float64            `bson:"ClosePrice" json:"ClosePrice"`
+	PredictPrice float64            `bson:"PredictPrice" json:"PredictPrice"`
 }
 
 func main() {
@@ -66,6 +70,9 @@ func main() {
 	}
 
 	fmt.Println("Connected to MongoDB!")
+
+	// Initialize in-memory cache
+	cCache = cache.New(5*time.Minute, 10*time.Minute)
 
 	r := gin.Default()
 	r.Use(cors.Default())
@@ -118,6 +125,15 @@ func getDataHandler(c *gin.Context) {
 		filter = append(filter, bson.E{Key: "Symbol", Value: symbol})
 	}
 
+	// Generate cache key
+	cacheKey := fmt.Sprintf("data_%s_%d_%d_%s_%s", filter, limit, page, sort, order)
+
+	// Check cache
+	if cachedData, found := cCache.Get(cacheKey); found {
+		c.JSON(http.StatusOK, cachedData)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -137,8 +153,7 @@ func getDataHandler(c *gin.Context) {
 		err := cursor.Decode(&doc)
 		if err != nil {
 			log.Printf("Failed to decode document: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode document"})
-			return
+			continue
 		}
 		results = append(results, doc)
 	}
@@ -156,12 +171,17 @@ func getDataHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"data":  results,
 		"total": total,
 		"page":  page,
 		"limit": limit,
-	})
+	}
+
+	// Set cache
+	cCache.Set(cacheKey, response, cache.DefaultExpiration)
+
+	c.JSON(http.StatusOK, response)
 }
 
 func getUniqueSymbolsHandler(c *gin.Context) {
@@ -178,7 +198,16 @@ func getUniqueSymbolsHandler(c *gin.Context) {
 
 	filter := bson.M{}
 	if query != "" {
-		filter = bson.M{"Symbol": bson.M{"$regex": query, "$options": "i"}}
+		filter = bson.M{"$text": bson.M{"$search": query}}
+	}
+
+	// Generate cache key
+	cacheKey := fmt.Sprintf("symbols_%s", query)
+
+	// Check cache
+	if cachedSymbols, found := cCache.Get(cacheKey); found {
+		c.JSON(http.StatusOK, cachedSymbols)
+		return
 	}
 
 	symbols, err := collection.Distinct(ctx, "Symbol", filter)
@@ -188,7 +217,11 @@ func getUniqueSymbolsHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"symbols": symbols,
-	})
+	}
+
+	cCache.Set(cacheKey, response, cache.DefaultExpiration)
+
+	c.JSON(http.StatusOK, response)
 }
