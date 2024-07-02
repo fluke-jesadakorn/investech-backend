@@ -103,7 +103,7 @@ func getDataHandler(c *gin.Context) {
 	}
 	collection := client.Database("StockThaiAnalysis").Collection("predict")
 
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "5"))
 	if err != nil || limit <= 0 {
 		limit = 10
 	}
@@ -124,6 +124,9 @@ func getDataHandler(c *gin.Context) {
 	if symbol := c.Query("Symbol"); symbol != "" {
 		filter = append(filter, bson.E{Key: "Symbol", Value: symbol})
 	}
+
+	// Log filter and sort parameters for debugging
+	log.Printf("Filter: %+v, Sort: %s, Order: %s, Limit: %d, Page: %d", filter, sort, order, limit, page)
 
 	// Generate cache key
 	cacheKey := fmt.Sprintf("data_%s_%d_%d_%s_%s", filter, limit, page, sort, order)
@@ -170,6 +173,9 @@ func getDataHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count documents"})
 		return
 	}
+
+	log.Printf("Total documents found: %d", total)
+	log.Printf("Documents: %+v", results)
 
 	response := gin.H{
 		"data":  results,
